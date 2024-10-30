@@ -4,13 +4,22 @@ import { Pay } from "../target/types/pay";
 
 describe("pay", () => {
   // Configure the client to use the local cluster.
-  anchor.setProvider(anchor.AnchorProvider.env());
 
+  const provider = anchor.AnchorProvider.env();
+  anchor.setProvider(provider);
   const program = anchor.workspace.Pay as Program<Pay>;
 
-  it("Is initialized!", async () => {
-    // Add your test here.
-    const tx = await program.methods.initialize().rpc();
-    console.log("Your transaction signature", tx);
+  const connection = provider.connection;
+
+  console.log("payer: ", provider.wallet.publicKey.toBase58());
+
+  const TOKEN_IN = new anchor.web3.PublicKey(
+    "So11111111111111111111111111111111111111112"
+  );
+  const TOKEN_OUT = new anchor.web3.PublicKey(
+    "BakLYNXdUFiSKKm14HESawEpiMe8z9Tr3ynKKV1CFXZ6"
+  );
+
+  it("Is swapped!", async () => {
   });
 });

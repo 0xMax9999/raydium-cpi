@@ -30,22 +30,8 @@ pub mod pay {
             return Err(ErrorCode::PaymentExpired.into());
         }
 
-        let fee_amount = payment.pay_in_amount * SWAP_FEE / 10000;
-
-        //  Transfer fee to treasury
-        token::transfer(
-            CpiContext::new(
-                accts.token_program.to_account_info(),
-                token::Transfer {
-                    from: accts.from_ata.to_account_info(),
-                    to: accts.treasury_ata.to_account_info(),
-                    authority: accts.payer.to_account_info()
-                },
-            ),
-            fee_amount
-        )?;
-
-        let swap_in_amount = payment.pay_in_amount - fee_amount;
+        //  Get initial to ata amount
+        let initial_ata_balance: u64 = accts.to_ata.amount;
 
         //  Swap pay_in_token to pay_out_token via Raydium CPI
         let swap_ix = swap_base_in(
@@ -68,7 +54,7 @@ pub mod pay {
             &accts.to_ata.key(),
             &accts.payer.key(),
 
-            swap_in_amount,
+            payment.pay_in_amount,
             0, //  min_out
         )?;
 
@@ -94,6 +80,40 @@ pub mod pay {
                 accts.to_ata.to_account_info(),
                 accts.payer.to_account_info(),
             ],
+        )?;
+
+        //  Get swap_out_amount
+        accts.to_ata.reload()?;
+        let to_ata_balance: u64 = accts.to_ata.amount;
+        let swap_out_amount = to_ata_balance - initial_ata_balance;
+        
+        let fee_amount = swap_out_amount * SWAP_FEE / 10000;
+        let out_amount = swap_out_amount - fee_amount;
+
+        //  Transfer fee to treasury
+        token::transfer(
+            CpiContext::new(
+                accts.token_program.to_account_info(),
+                token::Transfer {
+                    from: accts.from_ata.to_account_info(),
+                    to: accts.treasury_ata.to_account_info(),
+                    authority: accts.payer.to_account_info()
+                },
+            ),
+            fee_amount
+        )?;
+
+        //  Transfer fee to merchant
+        token::transfer(
+            CpiContext::new(
+                accts.token_program.to_account_info(),
+                token::Transfer {
+                    from: accts.from_ata.to_account_info(),
+                    to: accts.to_ata.to_account_info(),
+                    authority: accts.payer.to_account_info()
+                },
+            ),
+            out_amount
         )?;
 
         // Emit an event after the successful payment
