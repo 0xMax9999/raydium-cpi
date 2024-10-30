@@ -4,14 +4,14 @@
 resolution = true
 skip-lint = false
 
-[programs.localnet]
+[programs.devnet]
 pay = "DTX9HCuLLnu7tkoi7mfbBYth6uzCnVG87X2U5p1cJMEH"
 
 [registry]
 url = "https://api.apr.dev"
 
 [provider]
-cluster = "Localnet"
+cluster = "devnet"
 wallet = "./key/testKeypair.json"
 
 [scripts]

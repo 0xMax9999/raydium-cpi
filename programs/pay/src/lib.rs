@@ -1,5 +1,5 @@
 use anchor_lang::prelude::*;
-use anchor_spl::{associated_token::AssociatedToken, token::{Mint, Token, TokenAccount}};
+use anchor_spl::{associated_token::AssociatedToken, token::{Token, TokenAccount}};
 
 pub mod amm_instruction;
 
@@ -20,16 +20,12 @@ pub mod pay {
 
         let payer = &accts.payer;
 
-        let pay_in_token = &accts.pay_in_token;
-        let pay_out_token = &accts.pay_out_token;
-
         let treasury_ata = &accts.treasury_ata;
 
         // Ensure the transaction has not expired
         if Clock::get()?.unix_timestamp > payment.expiry {
             return Err(ErrorCode::PaymentExpired.into());
         }
-
         //  Get initial to ata amount
         let initial_ata_balance: u64 = accts.to_ata.amount;
 
@@ -95,7 +91,7 @@ pub mod pay {
             CpiContext::new(
                 accts.token_program.to_account_info(),
                 token::Transfer {
-                    from: accts.from_ata.to_account_info(),
+                    from: accts.to_ata.to_account_info(),
                     to: accts.treasury_ata.to_account_info(),
                     authority: accts.payer.to_account_info()
                 },
@@ -108,8 +104,8 @@ pub mod pay {
             CpiContext::new(
                 accts.token_program.to_account_info(),
                 token::Transfer {
-                    from: accts.from_ata.to_account_info(),
-                    to: accts.to_ata.to_account_info(),
+                    from: accts.to_ata.to_account_info(),
+                    to: accts.merchant_ata.to_account_info(),
                     authority: accts.payer.to_account_info()
                 },
             ),
@@ -118,16 +114,13 @@ pub mod pay {
 
         // Emit an event after the successful payment
         emit!(PaymentCompleted {
-            order_id: payment.order_id.clone(),
-
-            pay_in_token: pay_in_token.key(),
-            pay_out_token: pay_out_token.key(),
+            order_id: payment.order_id,
 
             pay_in_amount: payment.pay_in_amount,
-            pay_out_amount: payment.pay_out_amount,
+            pay_out_amount: out_amount,
 
             payer: payer.key(),
-            merchant: payment.merchant,
+            merchant: accts.merchant.key(),
             treasury: treasury_ata.key()
         });
 
@@ -137,10 +130,8 @@ pub mod pay {
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone)]
 pub struct Payment {
-    pub order_id: String,
+    pub order_id: u64,
     pub pay_in_amount: u64,
-    pub pay_out_amount: u64,
-    pub merchant: Pubkey,
     pub expiry: i64, // Unix timestamp for expiration
 }
 
@@ -155,10 +146,6 @@ pub struct CompletePayment<'info> {
     /// CHECK: treasury wallet address
     #[account(mut)]
     treasury: AccountInfo<'info>,
-    
-    pay_in_token: Box<Account<'info, Mint>>,
-    pay_out_token: Box<Account<'info, Mint>>,
-    
 
     #[account(mut)]
     /// CHECK: raydium will check
@@ -183,6 +170,9 @@ pub struct CompletePayment<'info> {
     
     #[account(mut)]
     treasury_ata: Box<Account<'info, TokenAccount>>,
+
+    #[account(mut)]
+    merchant_ata: Box<Account<'info, TokenAccount>>,
     
     #[account(mut)]
     /// CHECK: raydium will check
@@ -227,10 +217,7 @@ pub struct CompletePayment<'info> {
 
 #[event]
 pub struct PaymentCompleted {
-    order_id: String,
-
-    pay_in_token: Pubkey,
-    pay_out_token: Pubkey,
+    order_id: u64,
 
     pay_in_amount: u64,
     pay_out_amount: u64,
